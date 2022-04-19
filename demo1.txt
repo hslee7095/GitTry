@@ -1,0 +1,220 @@
+###demo code week 1, 220C, Mengyang Gu, March 2022
+
+#1. density/probability distribution, percentile, quantile, 
+##normal
+dnorm(0.5,mean=0,sd=1) ##density of standard normal distribution at x=0.5
+pnorm(0.5,mean=0,sd=1) ##percentile (cumulative distribution function) of standard normal distribution when x is not larger than 0.5
+qnorm(0.5,mean=0,sd=1)  ##quantile of standard normal distribution: 0.5=Pr(x<=q), where q is the quantile at 0.5 (which is the median as this is a continuous distribution)
+
+##gamma distribution
+dgamma(0.3,shape=2,rate=3) ##density of standard normal distribution at x=.3
+pgamma(1,shape=2,rate=3) ##percentile (cumulative distribution function) of gamma(2,3) when x is not larger than 1
+qgamma(0.2,shape=2,rate=3)  ##quantile of gamma(2,3) 0.2=Pr(x<=q)
+
+##uniform distribution
+dunif(0.3) ##density of standard normal distribution at x=.3
+punif(0.2) ##percentile (cumulative distribution function) of unif(0,1) when x is not larger than 0.2
+qunif(0.4)  ##quantile of unif(0,1) 0.2=Pr(x<=q)
+
+
+
+#2. vector   
+u=runif(5) ##5-vector vector from the uniform distribution
+#set specific seed
+set.seed(1)
+u=runif(5) ##
+v=runif(5)
+
+##equally space from 0 to 1
+v=seq(0,1,1/99)
+v
+#get the second entry 
+u[2]
+#vector  multiplication (inner product)
+w=t(v)%*%u ##valu same as sum(v*u )
+w ##1 by 1 matrix
+sum(v*u ) ##a scalar 
+##element product
+v*u ##return a vector
+## outer product 
+A=v%*%t(u)
+## one good thing is that R has many available functions. 
+##E.g. the rank of the matrix is implemented in the Matrix package
+##install.packages("Matrix") ##if you didn't install this packagee
+library(Matrix)
+rankMatrix(A) ##in principle, you can show a column can be represented as a linear combination of other columns
+
+##special matricees
+n=5
+identity_mat=diag(n) ###n x n identity matrix
+###change the diagonal to be 4
+diag(identity_mat)=4
+identity_mat
+
+##change the (2,3) entry to be 1
+identity_mat[2,3]=1
+identity_mat
+
+##3. matrix
+###n by n matrix, each entry randomly follows a uniform distribution
+##set speecific seed
+set.seed(0)
+A=matrix(runif(n^2),n,n)
+rankMatrix(A) ##rank of A
+dim(A)  ##dimension of A
+
+##A and its transpose
+A
+t(A)
+
+eigen_A=eigen(A) ##eigendecomposition of A
+eigen_A$values
+eigen_A$vectors
+
+B=matrix(runif(n^2),n,n)
+
+##matrix product 
+C=A%*%B
+##elementwise product 
+D=A*B
+##kroncker product 
+E=kronecker(A,B,'*')
+##check this is what we think
+E[1:n,1:n]-A[1,1]*B
+E[1:n,(n+1):(2*n)]-A[1,2]*B
+E[(n+1):(2*n),(n+1):(2*n)]-A[2,2]*B
+
+##inversion of A, not all matrix can be inverted 
+##usually we do not compute the inverse directly. we will discuss later
+A_inv=solve(A)
+A%*%A_inv
+##create a positive definite matrix
+G=A%*%t(A)
+G_eigen=eigen(G)
+G_eigen$values  ##positive eigenvalues
+kappa(G,exact = TRUE) ##condition number
+kappa(G) ##approximate condition number because computating the eigenvalus or svd is too costly
+G_eigen$values[1]/G_eigen$values[n]
+
+##singular value decomposition
+A_svd=svd(A)
+##connection between svd and eigen
+A_svd$d*A_svd$d-G_eigen$values
+abs(A_svd$u)- abs(G_eigen$vectors) 
+
+##svd can apply to n_1 x n_2 matrix while eigendecomposition can only apply to a squared matrix
+
+##cholsky decomposition
+L=t(chol(G))
+L
+L%*%t(L)-G
+#determinant
+det_G=det(G)
+prod(diag(L)^2) ##use cholesky decomposition to compute the determinant 
+##log determinant
+determinant(G)$modulus
+log_det_G=determinant(G)$modulus[1]
+log_det_G
+2*sum(log(diag(L)))  ###use logarithm of the cholesky decomposition to compute the determinant 
+
+###4. Comparing two different ways to compute G^{-1} y
+y=runif(n)
+##first way, direct inversion, not stable when the matrix is near singular  
+G_inv_y_1=solve(G)%*%y
+##second way, use cholesky and forward/backward substitution
+L=t(chol(G))
+G_inv_y_2=as.matrix(backsolve(t(L), forwardsolve(L,y)))
+##comparing 
+G_inv_y_2-G_inv_y_1
+
+###Let's compare some robustness between directly applying cholesky decomposition and inversion
+n=400
+x=seq(0,1,1/(n-1))
+R0=abs(outer(x,(x),'-'))
+##the larger the gamma, the more singular the matrix is  
+gamma=20
+R=exp(-(R0/gamma)^{1.99})
+##the truth is e_1=(1,0,...,0)^T
+sol_1=solve(R)%*%R[,1]
+L=t(chol(R))
+sol_2=(backsolve(t(L), forwardsolve(L,R[,1])))
+
+##RMSE root of mean squared error
+sqrt(mean((sol_1-c(1,rep(0,n-1)))^2))
+sqrt(mean((sol_2-c(1,rep(0,n-1)))^2))
+##computational time 
+##using cholesky decomposition is around three-four times faster
+##we will learn to use connecting R with C++ in the future
+system.time(
+  solve(R)%*%R[,1]
+)
+system.time(
+  for(t in 1:1){
+    L=t(chol(R))
+    sol_2=(backsolve(t(L), forwardsolve(L,R[,1])))
+  }
+)
+
+##let's see how the error change along with parameter gamma
+
+gamma_record=seq(1,20,1) 
+
+M=length(gamma_record)
+cond_num_approx=rep(0,M) ##record the approximate condition number
+RMSE_1=rep(0,M)
+RMSE_2=rep(0,M)
+for(i in 1:M){
+    R=exp(-(R0/gamma_record[i])^{1.99})
+    cond_num_approx[i]=kappa(R)
+    ##let's look at the second one
+    sol_1=solve(R)%*%R[,2]
+    RMSE_1[i]=sqrt(mean( (sol_1-c(0,1,rep(0,n-2)))^2))
+    L=t(chol(R))
+    sol_2=(backsolve(t(L), forwardsolve(L,R[,2])))
+    RMSE_2[i]=sqrt(mean( (sol_2-c(0,1,rep(0,n-2)))^2))
+}
+
+##you may save this figure as a pdf
+#pdf(file='RMSE_Cholesky_inversion_comparison.pdf',height=4,width=6)
+plot(gamma_record,RMSE_1,xlab=expression(gamma),ylab='RMSE')
+lines(gamma_record,RMSE_2,xlab=expression(gamma),ylab='RMSE',type='p',pch=20)
+legend('topleft',legend=c('Direct inversion','Cholesky'),pch=c(1,20))
+#dev.off()
+
+
+##5 tensor 
+library(rTensor)
+##feel free to explore more
+#
+mat <- matrix(seq(1,1000),nrow=100,ncol=10)
+
+tnsr=as.tensor(array(mat,c(20,5,10)))
+dim(tnsr)
+tnsr@modes
+dim(tnsr@data)
+tnsr@data[,1,1]
+
+tnsr_size=dim(tnsr)
+
+
+## mode 1 product and mode 2 product
+mat_1=matrix(seq(1,20),4,20)
+mat_2=matrix(seq(1,40,1),2,5 )
+d_1=dim(mat_1)[1]
+d_2=dim(mat_2)[1]
+  
+
+tnsr_1=ttm(tnsr, mat_1, m = 1)
+dim(tnsr_1)
+tnsr_2=ttm(tnsr_1, mat_2, m = 2)
+dim(tnsr_2)
+
+##the following tensor product can be reproduced using matrix product 
+matrix_1=(mat_1)%*%matrix(mat,tnsr_size[1], tnsr_size[2]*tnsr_size[3])
+matrix_2=(mat_2)%*%matrix(t(matrix_1),tnsr_size[2],d_1*tnsr_size[3])
+matrix_ans=t(matrix(t(matrix_2),tnsr_size[3],d_1*d_2))
+
+##check 
+tnsr_2@data-array(matrix_ans,c(d_1,d_2,tnsr_size[3]))
+matrix(tnsr_2@data,d_1*d_2,tnsr_size[3])-matrix_ans
+

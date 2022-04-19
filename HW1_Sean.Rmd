@@ -1,0 +1,85 @@
+---
+title: "220C HW1"
+author: "Sean Lee"
+date: '2022 4 8 '
+output: pdf_document
+number_sections: true
+---
+# 1. Cholesky Decomposition
+We generate the matrix as follows.
+```{r}
+# matrix generation
+
+x = seq(0,1,length=400)
+dens= function(x,y){
+  res = exp(-abs(x-y)/2)
+  return(res)
+}
+R = outer(x,x,FUN=dens)
+```
+
+## 1-(a). Inverse matrix
+First, we obtain the inverse matrix of $R$ using the 'solve' function in R. Then, we check the required entries.
+```{r}
+inv.R = solve(R)
+inv.R[1,2]; inv.R[2,3]; inv.R[1,3]; inv.R[1,4]
+round(inv.R[1:15, 1:15], 3)
+```
+We can see that this matrix is an example of tridiagonal matrix.
+
+# 1-(b). Cholesky decomposition and eigendecomposition
+```{r}
+## cholesky decomposition
+system.time({
+  L = t(chol(R))
+  })
+
+## eigendecomposition
+system.time(
+  {
+    E = eigen(R)
+  }
+)
+
+```
+We can see that eigendecomposition requires more time than Cholesky decomposition does.
+
+# 1-(c). Quadratic form computation
+```{r}
+y = seq(0,2,length=400)
+
+# first: inversion
+system.time(
+  {
+    res1 = t(y)%*%solve(R)%*%y
+    res1
+  }
+)
+
+# second: Cholesky decomposition 
+# and backward/forward substitution
+
+system.time(
+  {
+    res2 = t(y)%*%(backsolve(t(L), forwardsolve(L,y)))
+    res2
+  }
+)
+
+```
+We can see that both results are the same, and Cholesky decomposition is faster than the naive inversion.
+
+# 1-(d). Determinant
+First, we tried to obtain the $\log|\mathbf{R}|^{-1/2}=-\frac{1}{2}\log|\mathbf{R}|$ based on the direct inversion. Using the determinant function in R, we can directly get the log of the determinant.
+```{r}
+## first: direct inversion
+log.R = determinant(R)$modulus
+-.5*log.R
+```
+We got 1195.048 for the required value. Next, we try to compute based on Cholesky decomposition. Denoting Cholesky decomposition of $\mathbf{R}$ as $\mathbf{R}=\mathbf{L}\mathbf{L}^{T}$ where $\mathbf{L}_{400\times 400}=[L_{ij}]$, we realize that 
+$$\log|\mathbf{R}|^{-1/2}=-\frac{1}{2}\sum_{i=1}^{400}\log L_{ii}^2=-\sum_{i=1}^{400}\log L_{ii}.$$
+```{r}
+## second: Cholesky decomposition
+-sum(log(diag(L)))
+```
+Now, we see a finite value for the result, which implies nonsingularity of $\mathbf{R}$.
